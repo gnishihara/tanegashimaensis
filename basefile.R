@@ -58,3 +58,35 @@ ggplot(f3data) +
   facet_grid(rows = vars(experiment))
 
 write_csv(f3data, file = "f3data.csv")
+################################################################################
+
+path = dir(data_folders[grepl("Fig_4", data_folders)], full.names = TRUE,
+           pattern = "xlsx")
+
+f4data = tibble(fnames = path) %>% 
+  mutate(data = map(fnames, read_xlsx, sheet = "Results_original", range = "A1:G28"))
+
+f4data = f4data %>% select(data) %>% unnest(data) %>% 
+  rename_with(~c("Temperature", "n", "gww0", "gww3", "gww6", "gww10", "gww13"), everything()) %>% 
+  pivot_longer(-c(Temperature, n)) %>% 
+  mutate(day = str_extract(name, "[0-9]+")) %>% 
+  mutate(day = as.numeric(day))
+
+
+ggplot(f4data)  +
+   geom_point(aes(x = day, y = value)) + 
+  facet_wrap("Temperature")
+
+
+
+f4data = f4data %>% 
+  select(Temperature, n, value, name, day) %>% 
+  filter(day %in% c(0, 6)) %>% 
+  select(-day) %>% 
+  pivot_wider(names_from = name, values_from = value) %>% 
+  mutate(sr = ((log(gww6) - log(gww0))/6))
+
+ggplot(f4data) + 
+  geom_point(aes(x = Temperature, y = sr))
+
+write_csv(f4data, file = "f4data.csv")
