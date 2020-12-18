@@ -1,0 +1,167 @@
+---
+title: "Figure04"
+author: "Greg Nishihara"
+date: "12/1/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The response of the growth rate to temperature in laboratory culture
+
+
+The relative growth rate (RGR) was derived from a 6-day culture experiment under an irradiance of 50 µmol photons m^-2^ s^-1^.
+The photoperiod was 12L:12D and the experiment was conducted at ten temperature treatments (4, 8, 12, 16, 20, 24, 28, 32, 36, and 40°C).
+The culture media used was 1/2 concentration of PES and each individual was cultured in a 300 mL flask. 
+Three (n = 3) individuals per temperature level were assigned haphazardly.
+The cultures were maintained in a Multi Thermo Incubator (MTI-201, EYELA, Tokyo Rikakikai Co., Ltd., Tokyo, Japan). 
+The RGR was quantified using the change in wet weight between days 0 and 6 on a log scale.  
+
+$$
+RGR = \frac{\log_{e}(m_f) - \log_{e}(m_i)}{\Delta t}
+$$
+where $\Delta t$ is the duration of the experiment and $m_f$ and $m_i$ are the final and initial wet weight of the individuals, respectively. 
+
+
+## Modeling the response of RGR, gross photosynthesis rates, and $\Delta F/Fm'$ to temperature
+
+A Bayesian approach was used to analyze the response of photosynthesis to temperature.
+A thermodynamic non-linear model was used to model the temperature response of RGR,
+gross photosynthesis rates, and $\Delta F/Fm'$, assuming that physiological rates
+enters a less active state above some optimal temperature (Thornley and Johnson 2000; Alexandrov and Yamagata 2007).
+
+$$
+y = \frac{y_{max} H_d \exp\left(\frac{H_a}{R \left(K_{opt} - K\right)}\right)}{H_d - H_a \left(1-\exp\left(\frac{H_d}{R \left(K_{opt} - K\right)}\right)\right)} + Z
+$$
+In this equation, $y$ is the response variable, which is either the relative growth rate, the gross photosynthetic rate, 
+or the effective quantum yield ($\Delta F / Fm'$). 
+The temperature scale is Kelvin (K). 
+The model has four parameters: 
+$y_{max}$ scales the model to the range of $y$. 
+$K_{opt}$ is the absolute temperature where $y$ is maximized, 
+$H_{a}$ is the activation energy in kJ mol^-1^ and 
+$H_{d}$ is the deactivation energy in kJ mol^-1^. 
+$R$ in this model is the ideal gas constant and has a value of 8.314 J mol^-1^. 
+However, an offset $Z$ was added only to the RGR analysis to account for negative growth rates.
+
+In the case of gross photosynthesis rate, the rate was assumed to be a hidden state.
+Therefore the gross photosynthesis rate was estimated by simultaneously fitting the measured respiration rates to the Arrhenius equation,
+and the observed net photosynthetic rates to the difference between thermodynamic non-linear model and the Arrhenius equation. 
+
+$$
+R_d = R_{24} \exp\left(\frac{-E_a}{R}\left(\frac{1}{K - 297.15}\right)\right)
+$$
+In the light, both photorespiration and non-photorespiratory (i.e., mitochondrial) reactions result in oxygen consumption (Tcherkez et al. 2008); 
+however, it is not uncommon for the differences between respiration rates under light and dark conditions to be insignificant (Bellasio et al. 2014). 
+Hence, photorespiration was assumed to be adequately described by the dark respiration rate. 
+$R_{24}$ is the respiration rate at 24°C and $E_a$ is the activation energy. 
+The constant 297.15 is 24°C scaled in absolute temperature. 
+
+
+## Statistical analysis
+
+Statistical analyses of all the models were conducted using R version 4.0.3 (R Core Team 2020), 
+and model fitting was done using the package brms version 2.14.0 (Bürkner 2018). 
+The parameters were determined by fitting the relevant models using Bayesian methods. 
+The package bmrs using RStan (Stan Development Team 2020) as the backend to sample from the posterior distributions of the parameters, 
+and four chains of at least 2,000 samples per chain were generated and assessed for convergence.
+Typically, at least 1,000 samples of the parameters of interest are generated. 
+Informative normal priors were placed on all parameters of the model by using values from a previous study (Kokubu et al. 2015), and a half-Cauchy prior distribution was placed on the scale parameter of the models (Gelman 2004, 2006).
+The error distribution for the RGR and gross photosynthesis rate analysis was the gaussian distribution, and a
+beta distribution was used for the analysis of the effective quantum yield.
+
+## Run R
+
+
+```{r, eval = FALSE, message=FALSE}
+source("Figure04.R")
+```
+
+```{r, echo = FALSE, message=FALSE}
+source("Figure04.R")
+```
+
+
+## The figure
+
+The filenames of the image are `r str_replace(filename, "tex", "pdf")` and `r str_replace(filename, "tex", "png")`.
+
+```{r, fig.cap=CAP}
+CAP = "The response of relative growth rates to temperature. The solid line indicates the expected value calculated from the model and
+the shaded region indicates the 95% prediction interval of the model. Data are indicated by symbols."
+
+knitr::include_graphics(str_replace(filename, "tex", "png"))
+```
+
+
+```{r, echo = FALSE}
+X = data %>% group_by(temperature) %>% 
+  summarise(m = mean(value),
+            sd = sd(value),
+            se = sd(value) / sqrt(length(value) -1))
+
+gen = function(x,y) {
+  
+}
+
+gen2 = function(x,y, s) {
+  z = x %>% filter(str_detect(key, y))
+  sprintf("%2.3f (%2.3f to %2.3f) %s", z$value, z$.lower, z$.upper, s)
+}
+datatable %>% gen2("CT", "°C")
+```
+
+
+## Results
+
+The measured relative growth rates steadily increased from `r gen(X, 4)` at 4°C to a high of 
+`r gen(X, 28)` at 28°C, before decreasing to `r gen(X, 32)` at 32°C (mean ± standard deviation).
+
+The model analysis indicated that peak model RGR occurred at `r gen2(datatable, "CT", "°C")`
+and was `r gen2(datatable, "PS", "d^-1^")` (expected value and 95% highest density credible interval).
+The expected value and 95% highest density credible intervals (95% HDCI) for the remaining coefficients are
+in Table X.
+
+## Tables
+
+The mean and standard deviation of the data.
+
+```{r, echo = FALSE}
+cnames = c("Temperature", "Mean", "Std. Dev.") 
+cap = "The mean and standard deviation of the data."
+X %>% select(temperature, m, sd) %>% 
+  knitr::kable(col.names = cnames,
+               caption = cap)
+```
+
+
+The mean and 95% highest density credible intervals (HDCI) of the model coefficients.
+
+```{r, echo = FALSE}
+cnames = c("Coefficient", "Value", "95% Lower HDCI", "95% Upper HDCI")
+cap = "The model coefficients and 95% highest density credible intervals."
+datatable %>% select(key, value, .lower, .upper) %>% 
+  mutate(key = if_else(str_detect(key, "CT"), "Kopt", key),
+         key = if_else(str_detect(key, "PS"), "ymax", key)) %>% 
+  knitr::kable(col.names = cnames, 
+               caption = cap)
+```
+
+## Additional References
+
+Paul-Christian Bürkner (2018). Advanced Bayesian Multilevel Modeling
+  with the R Package brms. The R Journal, 10(1), 395-411.
+  doi:10.32614/RJ-2018-017
+
+
+R Core Team (2020). R: A language and environment for statistical
+  computing. R Foundation for Statistical Computing, Vienna, Austria.
+  URL https://www.R-project.org/.
+  
+  
+Stan Development Team (2020). RStan: the R interface to Stan. R
+  package version 2.21.3. http://mc-stan.org/.
+
+
