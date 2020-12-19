@@ -21,6 +21,46 @@ data_folders = list.dirs(dropbox, full.names = TRUE, recursive = TRUE)
 data_folders = data_folders[grepl("7_Xu", data_folders) & grepl("Fig_[1-8]", data_folders)]
 ################################################################################
 
+path = dir(data_folders[grepl("Fig_1", data_folders)], full.names = TRUE, pattern = "xlsx")
+
+f1data = tibble(path = path) %>% 
+  mutate(sheets = map(path, excel_sheets)) %>% 
+  unnest(sheets) %>% 
+  filter(str_detect(sheets, "^[0-9]+")) %>% print(n = Inf) %>% 
+  mutate(data = map2(path, sheets, read_xlsx, range = "C2:I37"))
+  
+
+f1data = f1data %>% mutate(data = map(data, function(x) {
+  x %>% group_nest(`Sample Number`) %>% 
+    mutate(rate = map_dbl(data, function(x) {
+      cfs = x %>% select(Time, DO) %>% lm(DO ~ Time, data = .) %>% coefficients() %>% print()
+      cfs[2] * x$`Reaction Flask`[1] / x$`Wet Weight`[1]
+    })) %>% select(-data)
+})) %>% unnest(data)
+
+
+f1data = 
+  f1data %>%
+  mutate(temperature = str_extract(path, "[0-9]{2}C")) %>% 
+  mutate(temperature = as.numeric(str_extract(temperature, "[0-9]+"))) %>% print(n = Inf) %>% 
+  mutate(id=`Sample Number`,
+         light = as.numeric(sheets),
+         temperature = as.numeric(temperature)) %>% 
+  select(temperature, light, id, rate)
+
+
+# Check the data  and it looks ok.
+
+ggplot(f1data) +
+  geom_point(aes(x = light, y = rate),
+             position = position_jitter(0.2),
+             alpha = 0.5) +
+  facet_grid(rows = vars(temperature))
+
+write_csv(f1data, file = "f1data.csv")
+
+################################################################################
+
 path = dir(data_folders[grepl("Fig_2", data_folders)], full.names = TRUE,
            pattern = "xlsx")
 f2data = tibble(sheets = readxl::excel_sheets(path)) %>% 
