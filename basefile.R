@@ -18,7 +18,44 @@ dropbox = dir("~/Dropbox/MS_Watanabe_GNN_RT",
               full.names = TRUE) 
 
 data_folders = list.dirs(dropbox, full.names = TRUE, recursive = TRUE)
-data_folders = data_folders[grepl("Fig_[1-8]", data_folders)]
+data_folders = data_folders[grepl("7_Xu", data_folders) & grepl("Fig_[1-8]", data_folders)]
+################################################################################
+
+path = dir(data_folders[grepl("Fig_2", data_folders)], full.names = TRUE,
+           pattern = "xlsx")
+f2data = tibble(sheets = readxl::excel_sheets(path)) %>% 
+  filter(str_detect(sheets, "[0-9]+")) %>% 
+  mutate(data = map(sheets, read_xlsx,
+                    path = path, range = "C2:I37"))
+
+f2data = f2data %>% mutate(data = map(data, function(x) {
+  x %>% group_nest(`Sample Number`) %>% 
+    mutate(rate = map_dbl(data, function(x) {
+      cfs = x %>% select(Time, DO) %>% lm(DO ~ Time, data = .) %>% coefficients()
+      cfs[2] * x$`Reaction Flask`[1] / x$`Wet Weight`[1]
+    })) %>% select(-data)
+})) %>% unnest(data)
+
+
+f2data = f2data %>%
+  mutate(state = if_else(str_detect(sheets, "dark"), "dark", "light")) %>% 
+  mutate(temperature = str_extract(sheets, "[0-9]+")) %>% 
+  group_by(state, temperature, `Sample Number`) %>% 
+  summarise(rate = mean(rate)) %>% ungroup() %>% 
+  mutate(id=`Sample Number`,
+         temperature = as.numeric(temperature)) %>% 
+  select(state, temperature, id, rate)
+
+
+# Check the data  and it looks ok.
+
+ggplot(f2data) +
+  geom_point(aes(x = temperature, y = rate),
+             position = position_jitter(0.2),
+             alpha = 0.5) +
+  facet_grid(rows = vars(state))
+
+write_csv(f2data, file = "f2data.csv")
 
 
 ################################################################################

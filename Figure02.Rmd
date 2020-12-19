@@ -1,0 +1,172 @@
+---
+title: "Figure02"
+author: "Greg Nishihara"
+date: "12/8/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+For the details of the model see Figure04.docx and Figure04.Rmd.
+
+## Run R
+
+```{r, eval = FALSE, message=FALSE, warning=FALSE}
+source("Figure02.R")
+```
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+source("Figure02.R", echo = FALSE, print = FALSE, verbose = FALSE)
+```
+
+## The figure
+
+The filenames of the image are `r str_replace(filename, "tex", "pdf")` and `r str_replace(filename, "tex", "png")`.
+
+```{r, fig.cap=CAP, out.width="50%"}
+CAP = "The response of (A) net photosynthesis, (B) gross photosynthesis, and (C) dark respiration rates against a range of water temperatures.
+The solid lines indicate the expected value of the model and the symbols indicate the data. The shaded regions in (A) and (B) indicate 95% prediction interval of the data, however for (C) it is a 95% prediction interval of the model."
+
+knitr::include_graphics(str_replace(filename, "tex", "png"))
+```
+
+
+```{r, echo = FALSE}
+D = data %>% 
+  group_by(temperature) %>% 
+  summarise(m = mean(dark),
+            sd =  sd(dark),
+            se =  sd(dark) / sqrt(length(dark) -1)) %>% ungroup()
+L = data %>% 
+  group_by(temperature) %>% 
+  summarise(m = mean(light),
+            sd =  sd(light),
+            se =  sd(light) / sqrt(length(light) -1)) %>% ungroup()
+
+gen = function(x,y) {
+  x = x %>% filter(temperature == y)
+  S = "μg O~2~ g~ww~^-1^ min^-1^"
+  sprintf("%2.1f ± %2.1f, %s", 
+          x$m, x$sd, S)
+}
+
+gen2 = function(x,y, s = NULL) {
+  w = x %>% 
+    filter(str_detect(key, y))
+  if(is.null(s)) {
+    sprintf("%2.1f (%2.1f to %2.1f)", w$value, w$.lower, w$.upper)
+  } else {
+    sprintf("%2.1f (%2.1f to %2.1f) %s", w$value, w$.lower, w$.upper, s)
+  }
+}
+
+gen3 = function(x,y, s = NULL) {
+  w = x %>% 
+    filter(str_detect(key, y))
+  if(is.null(s)) {
+    sprintf("%2.1f (%2.1f to %2.1f)", w$value, w$.lower, w$.upper)
+  } else {
+    sprintf("%2.1f (%2.1f to %2.1f) %s", w$value, w$.lower, w$.upper, s)
+  }
+}
+
+datatable = tidy_draws(sout) %>% 
+  select(PS, HA, ET, KT, EA, RD) %>% 
+  mutate(HD = HA * ET,
+         KT = KT - 273.15) %>% 
+  select(-ET) %>% 
+  gather() %>% 
+  group_by(key) %>% 
+  mean_hdci()
+```
+
+
+## Results
+
+The mean net photosynthesis rates (Table X) ranged from `gen(L, 8)` at 8°C to `gen(L, 28)` at 28°C (mean ± standard deviation) and the mean darak respiration rates ranged from `gen(D,8)` at 8°C to `gen(D, 32)` at 32°C (Table Y).
+
+The model analysis indicated that peak gross photosynthesis rate occurred at `r gen2(datatable, "KT", "°C")` and was `r gen3(datatable, "PS", "μg O~2~ g~ww~^-1^ min^-1^")` (Table Z). The dark respiration rate at 24°C (R~24~) was `r gen3(datatable, "RD", "μg O~2~ g~ww~^-1^ min^-1^")`
+
+
+## Tables
+
+```{r, echo = FALSE}
+cnames = c("Temperature", "Mean", "Std. Dev.") 
+cap = "Table X. The mean and standard deviation of the measured net photosynthesis rates."
+
+L %>% 
+  select(temperature, m, sd) %>% 
+  knitr::kable(col.names = cnames, caption = cap,
+               format = "pipe",
+               digits = c(2,3,3))
+```
+
+```{r, echo = FALSE}
+cnames = c("Temperature", "Mean", "Std. Dev.") 
+cap = "Table Y. The mean and standard deviation of the measured dark respiration rates."
+
+D %>% 
+  select(temperature, m, sd) %>% 
+  knitr::kable(col.names = cnames, caption = cap,
+               format = "pipe",
+               digits = c(2,3,3))
+```
+
+
+```{r, echo = FALSE}
+cnames = c("Coefficient", "Value", 
+           "95% Lower HDCI", "95% Upper HDCI")
+cap = "Table Z. The model coefficients and 95% highest density credible intervals. Note that K~opt~ is given in °C."
+
+datatable %>% select(key, value, .lower, .upper) %>% 
+  mutate(key = factor(key,
+                      levels = c("PS", "KT", "HA", "HD", "RD", "EA"),
+                      labels = c("PS", "KT", "HA", "HD", "RD", "EA"))) %>% 
+  arrange(key) %>% 
+  mutate(key = as.character(key)) %>% 
+  mutate(value = case_when(
+    str_detect(key, "PS|RD")  ~ format(value, digits = 2),
+    str_detect(key, "H[AD]|EA") ~ format(value, digits = 0),
+    TRUE ~ format(value, digits = 2)
+  )) %>%
+  mutate(.lower = case_when(
+    str_detect(key, "PS|RD")  ~ format(.lower, digits = 2),
+    str_detect(key, "H[AD]|EA") ~ format(.lower, digits = 0),
+    TRUE                     ~ format(.lower, digits = 2)
+  )) %>%
+  mutate(.upper = case_when(
+    str_detect(key, "PS|RD")  ~ format(.upper, digits = 2),
+    str_detect(key, "H[AD]|EA") ~ format(.upper, digits = 0),
+    TRUE                     ~ format(.upper, digits = 2)
+  )) %>%
+  mutate(key = recode(key,
+                      PS = "P~max~",
+                      KT = "K~opt~",
+                      HA = "H~a~",
+                      HD = "H~d~",
+                      RD = "R~24~",
+                      EA = "E~a~")) %>% 
+  knitr::kable(col.names = cnames, 
+               caption = cap,
+               format = "pipe",
+               align = "lrrr")
+```
+
+## Additional References
+
+Paul-Christian Bürkner (2018). Advanced Bayesian Multilevel Modeling
+  with the R Package brms. The R Journal, 10(1), 395-411.
+  doi:10.32614/RJ-2018-017
+
+
+R Core Team (2020). R: A language and environment for statistical
+  computing. R Foundation for Statistical Computing, Vienna, Austria.
+  URL https://www.R-project.org/.
+  
+  
+Stan Development Team (2020). RStan: the R interface to Stan. R
+  package version 2.21.3. http://mc-stan.org/.
+
+
